@@ -155,5 +155,21 @@ time, and nothing in SDL's headers depends on it.
 
 ## CI
 
-None yet. `mlp1-toolchain`'s two workflows (SDK artifacts for `linux/amd64`
-and `linux/arm64`, then a multi-platform GHCR image) are the pattern to copy.
+Nothing runs on a push or a pull request: a cold SDK build takes too long
+to gate every change. Two workflows run by hand, and one of them on tags:
+
+- **Build SDK** (`.github/workflows/build-sdk.yml`): the SDK for
+  `linux/amd64` and `linux/arm64`, each on its own runner, then an image from
+  it and `make smoke` in that image (the amd64 runner runs the aarch64 smoke
+  programs through QEMU). The tarballs and manifests are kept as artifacts
+  for 14 days, and each job's summary lists its versions. Run it to check a
+  change without publishing anything.
+- **Publish image** (`.github/workflows/publish.yml`): by hand, or when a
+  `v*` tag is pushed. It runs Build SDK, then builds one multi-platform image
+  from both tarballs and pushes it to
+  `ghcr.io/utility-muffin-research-kitchen/xylem-toolchain`, tagged with the
+  branch and the commit (`sha-…`), and for a tag with its version and
+  `latest`. The job summary gives the digest and how to turn it into the
+  image ID Leaf pins.
+
+`make smoke-leaf` stays local: it needs the sibling checkouts.

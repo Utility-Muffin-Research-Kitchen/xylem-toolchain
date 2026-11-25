@@ -1,0 +1,98 @@
+name: Publish image
+
+# By hand, or for a v* tag: both SDKs with their smoke tests (build-sdk.yml),
+# then one linux/amd64 + linux/arm64 image on GHCR. Leaf pins the image by
+# ID, never by tag; the job summary says how to get it.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sdk:
+    uses: ./.github/workflows/build-sdk.yml
+
+  image:
+    name: Image
+    needs: sdk
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # Only a run by hand or a v* tag pushes; any other trigger builds only
+      PUBLISH: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download the SDKs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: xylem-sdk-linux-*
+          path: dist
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=ref,event=branch
+            type=sha
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Summary
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "### xylem toolchain image"
+            echo
+            if [ "$PUBLISH" = true ]; then
+              echo "Pushed, digest \`$DIGEST\`, as:"
+            else
+              echo "Built, not pushed (only a run by hand or a v* tag pushes). Would be:"
+            fi
+            echo '```'
+            echo "$TAGS"
+            echo '```'
+            echo "To pin it, pull it on the build host and take that host's image ID:"
+            echo '```sh'
+            echo "docker pull ghcr.io/${GITHUB_REPOSITORY}@$DIGEST"
+            echo "docker image inspect --format '{{.Id}}' ghcr.io/${GITHUB_REPOSITORY}@$DIGEST"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,77 @@
+name: Build SDK
+
+# One SDK per architecture, each on its own runner: the SDK tarball, an image
+# from it, and the smoke tests in that image. publish.yml calls this; run it
+# by hand to check a change without publishing anything.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sdk:
+    name: SDK ${{ matrix.sdk_arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sdk_arch: amd64
+            runner: ubuntu-24.04
+          - sdk_arch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Buildroot's tree for this SDK is about 15 GB, the image 2.5 GB
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          docker system prune -af >/dev/null
+          df -h /
+
+      - name: Build the SDK
+        run: make sdk SDK_ARCH=${{ matrix.sdk_arch }}
+
+      - name: Record the SDK's versions
+        run: |
+          {
+            echo "### xylem SDK, linux/${{ matrix.sdk_arch }}"
+            echo '```'
+            cat dist/xylem-sdk-linux-${{ matrix.sdk_arch }}.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the SDK
+        uses: actions/upload-artifact@v7
+        with:
+          name: xylem-sdk-linux-${{ matrix.sdk_arch }}
+          path: |
+            dist/xylem-sdk-linux-${{ matrix.sdk_arch }}.tar.gz
+            dist/xylem-sdk-linux-${{ matrix.sdk_arch }}.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Drop the Buildroot tree
+        run: make clean-sdk-volume SDK_ARCH=${{ matrix.sdk_arch }}
+
+      - name: Build the image
+        run: make image SDK_ARCH=${{ matrix.sdk_arch }}
+
+      # The smoke programs are aarch64 and run through the sysroot's loader,
+      # so the amd64 runner needs QEMU to run them
+      - name: Set up QEMU
+        if: matrix.sdk_arch == 'amd64'
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - name: Smoke tests
+        run: make smoke
