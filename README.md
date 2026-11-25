@@ -44,7 +44,9 @@ Libraries, all Buildroot 2026.02.3's packages:
   62, pixman 0.46.4.
 
 The set is `configs/leaf-sdk.fragment`; xylem's toolchain lines are
-`configs/xylem-base.fragment`.
+`configs/xylem-base.fragment`. In the manifest, freetype2 (26.6.20) and
+wayland-egl (18.1.0) show their pkg-config versions, which aren't the
+release numbers.
 
 ## Image interface
 
@@ -65,18 +67,26 @@ UMRK_TARGET_OS=xylem
 (the MLP1 and the RG DS Plus), so the board is the build's choice, not the
 image's. `pkg-config` and `wayland-scanner` on `PATH` are the SDK's own.
 
-To use it where a build takes `mlp1-toolchain`'s image, pass this one's ID:
+Repos that run `mlp1-toolchain`'s image take the image as a variable, so
+this one can stand in. Pin it by ID, and give the build its own output
+folder: Jawaka's `make mlp1` doesn't pass `BUILD` into the container, so
+call its port makefile directly or it overwrites the stock build in
+`build/mlp1`:
 
 ```sh
 image="$(docker image inspect --format '{{.Id}}' \
   ghcr.io/utility-muffin-research-kitchen/xylem-toolchain:local)"
-make -C ../Jawaka mlp1 MLP1_TOOLCHAIN_IMAGE="$image" BUILD=build/xylem
+docker run --rm -v "$PWD/..":/workspace -w /workspace/Jawaka "$image" \
+  make -f ports/mlp1/Makefile all BUILD=build/xylem
 ```
+
+`PLATFORM=mlp1` is still stock's backend (`device_mlp1.c`): this builds it
+against xylem's libraries, it doesn't port it.
 
 ## Building it
 
 ```sh
-make sdk     # the SDK tarball into dist/ (about an hour the first time)
+make sdk     # the SDK tarball into dist/ (28 minutes on a 15-core M-series Mac)
 make image   # ghcr.io/utility-muffin-research-kitchen/xylem-toolchain:local
 make smoke   # link the smoke program against every library and check it
 ```
@@ -91,15 +101,41 @@ version with xylem at the commit in `xylem.ref`, through `gh` (xylem is
 private). Moving to a newer xylem is: change `XYLEM_REF`, run
 `make check-xylem`, copy over any lines it reports, `make sdk image smoke`.
 
-## Smoke test
+## Smoke tests
 
-`examples/smoke/` links one C program against every C library in the set and
-a C++ one against libstdc++ and fmt. `make smoke` builds them and runs
-`scripts/verify-binary.sh` on each: the loader must be
+`make smoke` builds three programs in `examples/smoke/`, checks them, and
+runs them:
+
+- a C program that links every C library in the set and calls each one
+  (versions, an in-memory SQLite JSON query, curl's TLS backend, a SHA-512
+  `crypt`, inih, a zlib round trip, the Wayland half of `SDL_syswm.h`);
+- a C++ one against libstdc++, threads and fmt;
+- a CMake one through the image's `Toolchain.cmake`, SDL2's own CMake
+  package, CMake's Vulkan finder and `pkg_check_modules`.
+
+`scripts/verify-binary.sh` checks each binary: the loader must be
 `/lib/ld-linux-aarch64.so.1` and every `NEEDED` library must be in the
-sysroot; it prints the newest `GLIBC_` and `GLIBCXX_` versions used. On an
-arm64 host, `make -C examples/smoke run` inside the image also runs them
-through the sysroot's own loader.
+sysroot; it prints the newest `GLIBC_` and `GLIBCXX_` versions used. The run
+goes through the sysroot's own loader and libraries, so it needs an arm64
+host (or qemu-user).
+
+`make smoke-leaf` builds real Leaf code against the image from clean
+`git archive` exports of the sibling checkouts (never the checkouts
+themselves), into `../.worktrees/xylem-toolchain-smoke/`: every Catastrophe
+example through its Linux target, and Jawaka's `PLATFORM=mlp1` build. Then
+it runs `verify-binary.sh` on each binary.
+
+Results on 2026-11-25 (image `sha256:940ff77a2f79…`, Jawaka `3a87162`,
+Catastrophe `a32c248`): everything builds and passes, with no change to
+either repository. Catastrophe's 26 warnings are the same as on
+`mlp1-toolchain`. Jawaka has two more than on `mlp1-toolchain`, both GCC
+15 `-Wformat-truncation` on copies that are already bounded
+(`internal/db/db.c` 2737, `internal/platform/game_display.h` 122). No
+binary needs a glibc symbol newer than 2.38.
+
+Catastrophe's Linux target calls `cc` by name, so `smoke-leaf.sh` puts a
+`cc` script on `PATH` that runs `$CC`. A symlink doesn't work: Buildroot's
+compiler wrapper finds the real compiler from the name it was called by.
 
 ## Matching the image
 

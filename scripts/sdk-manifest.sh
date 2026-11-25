@@ -48,9 +48,9 @@ done
 # SDL2's back ends, as its public config header records them
 for define in SDL_VIDEO_DRIVER_WAYLAND SDL_VIDEO_DRIVER_KMSDRM SDL_VIDEO_DRIVER_X11 \
 	SDL_VIDEO_OPENGL_ES2 SDL_VIDEO_OPENGL_EGL SDL_VIDEO_VULKAN \
-	SDL_AUDIO_DRIVER_ALSA SDL_AUDIO_DRIVER_PULSEAUDIO SDL_USE_LIBUDEV
+	SDL_AUDIO_DRIVER_ALSA SDL_AUDIO_DRIVER_PULSEAUDIO SDL_UDEV_DYNAMIC
 do
-	if grep -q "^#define $define 1" "$sysroot/usr/include/SDL2/SDL_config.h"; then
+	if grep -q "^#define $define " "$sysroot/usr/include/SDL2/SDL_config.h"; then
 		echo "sdl2.$define=on"
 	else
 		echo "sdl2.$define=off"
