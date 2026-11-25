@@ -54,7 +54,7 @@ static void check(const char *what, int ok)
 		failures++;
 }
 
-static int ini_handler(void *user, const char *section, const char *name, const char *value)
+static int on_ini_line(void *user, const char *section, const char *name, const char *value)
 {
 	(void)section;
 	if (strcmp(name, "answer") == 0)
@@ -156,7 +156,7 @@ int main(void)
 	printf("ICU        %s\n", icu_s);
 
 	int answer = 0;
-	ini_parse_string("[leaf]\nanswer = 42\n", ini_handler, &answer);
+	ini_parse_string("[leaf]\nanswer = 42\n", on_ini_line, &answer);
 	check("inih", answer == 42);
 
 	unsigned char packed[64], unpacked[64];

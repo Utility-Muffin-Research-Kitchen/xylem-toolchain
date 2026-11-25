@@ -64,7 +64,7 @@ manifest:
 
 # Link a program against every library in the set, and check what it needs
 smoke:
-	docker run --rm -v "$(CURDIR)":/src -w /src/examples/smoke $(LOCAL_IMAGE) make clean all check
+	docker run --rm -v "$(CURDIR)":/src -w /src/examples/smoke $(LOCAL_IMAGE) make clean all check run
 
 # Build Catastrophe's examples and Jawaka's mlp1 build from clean exports
 # of the sibling checkouts (see scripts/smoke-leaf.sh)

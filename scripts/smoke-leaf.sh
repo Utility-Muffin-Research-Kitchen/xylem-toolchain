@@ -38,13 +38,15 @@ verify=/opt/xylem-toolchain/share/xylem-toolchain/verify-binary.sh
 status=0
 
 # Catastrophe's Linux target calls `cc` by name, so put the cross compiler
-# there under that name for this run
+# there under that name for this run. A script, not a symlink: Buildroot's
+# compiler wrapper finds the real compiler from the name it was called by.
 echo "== Catastrophe: make linux"
 if docker run --rm -v "$out/Catastrophe":/src -w /src "$image" bash -c '
 	set -e
-	mkdir -p /tmp/cc && ln -sf "$CC" /tmp/cc/cc && export PATH=/tmp/cc:$PATH
+	mkdir -p /tmp/cc && printf "#!/bin/sh\nexec \"\$CC\" \"\$@\"\n" > /tmp/cc/cc
+	chmod +x /tmp/cc/cc && export PATH=/tmp/cc:$PATH
 	make linux
-	for b in build/linux/*/*; do [ -f "$b" ] && [ -x "$b" ] && '"$verify"' "$b"; done
+	for d in build/linux/*/; do '"$verify"' "$d$(basename "$d")"; done
 ' > "$out/catastrophe.log" 2>&1; then
 	echo "ok (log: $out/catastrophe.log)"
 else
@@ -60,7 +62,7 @@ if docker run --rm \
 	-w /workspace/Jawaka "$image" bash -c '
 	set -e
 	make -f ports/mlp1/Makefile all BUILD=build/xylem
-	for b in build/xylem/bin/*; do [ -f "$b" ] && [ -x "$b" ] && '"$verify"' "$b"; done
+	for b in build/xylem/bin/*; do file -b "$b" | grep -q "^ELF" && '"$verify"' "$b"; done
 ' > "$out/jawaka.log" 2>&1; then
 	echo "ok (log: $out/jawaka.log)"
 else
