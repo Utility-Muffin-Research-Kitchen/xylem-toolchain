@@ -1,0 +1,82 @@
+# What Leaf builds against on xylem, added to xylem's toolchain
+# (configs/xylem-base.fragment). scripts/build-sdk.sh merges the two and stops
+# if any setting line here is missing from the final .config: Buildroot drops
+# a line whose dependencies aren't met without a word.
+#
+# Every package here is Buildroot 2026.02.3's own, so its version is the one
+# xylem's image gets when it turns the same package on. Options that change a
+# library's headers or exports (SDL2's video back ends, libxcrypt's compat
+# API) have to match the image too; see the README's "Matching the image".
+
+# C++: Mesa, the Vulkan loader, ICU and fmt need it, and so do RetroArch's
+# C++ cores, PPSSPP and the rest. xylem itself builds C only today; Green
+# Genes turns this on, and xylem's image will need libstdc++ for the same
+# programs. It changes only GCC's last stage, not glibc.
+BR2_TOOLCHAIN_BUILDROOT_CXX=y
+
+# The SDK, not a root filesystem
+# BR2_TARGET_ROOTFS_TAR is not set
+
+# udev: libudev for SDL2 and for programs that look devices up. The image
+# needs eudev anyway for libinput under Weston (leaf-on-xylem.md, Userland).
+BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_EUDEV=y
+
+# Audio: ALSA (with UCM) and PulseAudio's client library. The daemon comes
+# with the package; the image decides whether to run it.
+BR2_PACKAGE_ALSA_LIB=y
+BR2_PACKAGE_PULSEAUDIO=y
+
+# Graphics interfaces, blob-free. Mesa with the softpipe driver only: it
+# gives libEGL.so.1, libGLESv2.so.2 and libgbm.so.1, their headers and the
+# Wayland EGL platform, which is all a program links. On the device the Mali
+# blob (libmali g29p1 with JeffyCN's wrappers) answers to the same sonames.
+# Not Panfrost: Buildroot's Mesa 26 ties it to building LLVM and clang.
+BR2_PACKAGE_LIBDRM=y
+BR2_PACKAGE_MESA3D=y
+BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_SOFTPIPE=y
+BR2_PACKAGE_MESA3D_OPENGL_EGL=y
+BR2_PACKAGE_MESA3D_OPENGL_ES=y
+BR2_PACKAGE_MESA3D_GBM=y
+BR2_PACKAGE_VULKAN_HEADERS=y
+BR2_PACKAGE_VULKAN_LOADER=y
+
+# Wayland: the client library and protocols, the host wayland-scanner (which
+# the package builds and points wayland-scanner.pc at), and xkbcommon
+BR2_PACKAGE_WAYLAND=y
+BR2_PACKAGE_WAYLAND_PROTOCOLS=y
+BR2_PACKAGE_LIBXKBCOMMON=y
+
+# SDL2 2.32.10 with Wayland, KMSDRM, GLES and ALSA (ALSA follows alsa-lib).
+# Buildroot's recipe turns PulseAudio, Vulkan and dbus off; see the README.
+BR2_PACKAGE_SDL2=y
+BR2_PACKAGE_SDL2_KMSDRM=y
+BR2_PACKAGE_SDL2_OPENGLES=y
+BR2_PACKAGE_SDL2_WAYLAND=y
+BR2_PACKAGE_SDL2_IMAGE=y
+BR2_PACKAGE_SDL2_TTF=y
+BR2_PACKAGE_SDL2_MIXER=y
+
+# Fonts and images
+BR2_PACKAGE_FREETYPE=y
+BR2_PACKAGE_HARFBUZZ=y
+BR2_PACKAGE_LIBPNG=y
+BR2_PACKAGE_JPEG=y
+BR2_PACKAGE_JPEG_TURBO=y
+BR2_PACKAGE_ZLIB=y
+
+# Data, network, accounts
+BR2_PACKAGE_SQLITE=y
+BR2_PACKAGE_SQLITE_ENABLE_FTS3=y
+BR2_PACKAGE_JSON_C=y
+BR2_PACKAGE_OPENSSL=y
+BR2_PACKAGE_LIBCURL=y
+BR2_PACKAGE_LIBCURL_OPENSSL=y
+BR2_PACKAGE_CA_CERTIFICATES=y
+# libxcrypt, with glibc's old libcrypt.so.1 API turned on in external.mk
+BR2_PACKAGE_LIBXCRYPT=y
+
+# What mlp1-toolchain also carries, for the cores and EasyRPG
+BR2_PACKAGE_FMT=y
+BR2_PACKAGE_ICU=y
+BR2_PACKAGE_INIH=y
+BR2_PACKAGE_PIXMAN=y

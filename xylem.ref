@@ -1,0 +1,4 @@
+# xylem commit the toolchain lines in configs/xylem-base.fragment come from
+XYLEM_REF=4a7975a67d1dfadf7951edbce9459934c7dfed47
+BUILDROOT_VERSION=2026.02.3
+BUILDROOT_SHA256=5a59e7501b0b4ec52c41f4bfa79412320e0b37eae5f719605a258e8d0c6fc7fb
