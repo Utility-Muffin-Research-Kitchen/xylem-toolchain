@@ -8,6 +8,9 @@ on:
   push:
     tags:
       - 'v*'
+    # TEMPORARY, for testing this branch: builds everything, pushes nothing
+    branches:
+      - agent/ci-workflows
 
 permissions:
   contents: read
