@@ -67,6 +67,28 @@ UMRK_TARGET_OS=xylem
 (the MLP1 and the RG DS Plus), so the board is the build's choice, not the
 image's. `pkg-config` and `wayland-scanner` on `PATH` are the SDK's own.
 
+## Published image
+
+The image is public on GHCR, for `linux/amd64` and `linux/arm64`. The first
+one, published by hand from `main` at `c376e7f` on 2026-11-25:
+
+```text
+ghcr.io/utility-muffin-research-kitchen/xylem-toolchain:sha-c376e7f
+ghcr.io/utility-muffin-research-kitchen/xylem-toolchain@sha256:7d4e3f6114ce568d9af89eea6e5531546e014ca890013632eee77beabb5fd53f
+```
+
+Tags move (`main` follows the last publish from `main`, `latest` the last
+`v*` tag); the digest doesn't. Pull by digest, then pin the image ID your
+Docker gives it. On the same host and Docker, that ID stays the same:
+
+```sh
+docker pull ghcr.io/utility-muffin-research-kitchen/xylem-toolchain@sha256:7d4e3f6114ce568d9af89eea6e5531546e014ca890013632eee77beabb5fd53f
+docker image inspect --format '{{.Id}}' \
+  ghcr.io/utility-muffin-research-kitchen/xylem-toolchain@sha256:7d4e3f6114ce568d9af89eea6e5531546e014ca890013632eee77beabb5fd53f
+```
+
+## Using it
+
 Repos that run `mlp1-toolchain`'s image take the image as a variable, so
 this one can stand in. Pin it by ID, and give the build its own output
 folder: Jawaka's `make mlp1` doesn't pass `BUILD` into the container, so
@@ -75,7 +97,7 @@ call its port makefile directly or it overwrites the stock build in
 
 ```sh
 image="$(docker image inspect --format '{{.Id}}' \
-  ghcr.io/utility-muffin-research-kitchen/xylem-toolchain:local)"
+  ghcr.io/utility-muffin-research-kitchen/xylem-toolchain@sha256:7d4e3f6114ce568d9af89eea6e5531546e014ca890013632eee77beabb5fd53f)"
 docker run --rm -v "$PWD/..":/workspace -w /workspace/Jawaka "$image" \
   make -f ports/mlp1/Makefile all BUILD=build/xylem
 ```
@@ -171,5 +193,10 @@ to gate every change. Two workflows run by hand, and one of them on tags:
   branch and the commit (`sha-…`), and for a tag with its version and
   `latest`. The job summary gives the digest and how to turn it into the
   image ID Leaf pins.
+
+On GitHub's 4-core runners one SDK took 56 to 84 minutes in the first two
+runs, and a whole publish 63 to 90. The spread is the runners: the slow
+amd64 job had the same 4 cores, and every compile step took about 1.5
+times as long.
 
 `make smoke-leaf` stays local: it needs the sibling checkouts.
